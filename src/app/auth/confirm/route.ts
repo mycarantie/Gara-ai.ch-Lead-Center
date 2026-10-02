@@ -10,6 +10,10 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
 
+  // Implicit-flow links carry their tokens in the URL fragment, which never reaches the server.
+  // The browser keeps the fragment across this redirect, and /auth/finish reads it.
+  if (!code && !tokenHash) redirect("/auth/finish");
+
   const supabase = await createClient();
 
   let failed = true;
