@@ -21,6 +21,8 @@ export type ImportRow = Partial<Record<ImportField, string>>;
 
 export interface ImportResult {
   imported: number;
+  // Existing leads that had empty fields filled in; `reason` lists those fields
+  updated: { line: number; name: string; reason: string }[];
   duplicates: { line: number; name: string; reason: string }[];
   errors: { line: number; name: string; reason: string }[];
 }

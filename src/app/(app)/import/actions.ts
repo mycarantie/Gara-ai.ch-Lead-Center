@@ -2,25 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { IMPORT_FIELDS, type ImportResult, type ImportRow } from "@/lib/csv";
-import { CANTONS } from "@/lib/labels";
-import { fetchAll, normalizeUrl } from "@/lib/leads";
-import { normalizePhone } from "@/lib/phone";
+import { type ExistingLead, FILLABLE, planImport } from "@/lib/importPlan";
+import { fetchAll } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
 const MAX_ROWS_PER_CALL = 500;
-const FIELD_KEYS = IMPORT_FIELDS.map((field) => field.key) as string[];
+const UPDATE_CONCURRENCY = 8;
 
-// Same link written with or without https://, www. or a trailing slash counts as one
-function urlKey(url: string): string {
-  return url
-    .toLowerCase()
-    .replace(/^https?:\/\/(www\.)?/, "")
-    .replace(/\/+$/, "");
-}
-
-function clean(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
+const FIELD_LABELS: Record<string, string> = Object.fromEntries(
+  IMPORT_FIELDS.map((field) => [field.key, field.label.toLowerCase()]),
+);
 
 // `firstLine` is the CSV line number of rows[0], used in the report (the header is line 1).
 export async function importLeads(
@@ -28,81 +19,48 @@ export async function importLeads(
   region: string,
   firstLine: number,
 ): Promise<ImportResult> {
-  const result: ImportResult = { imported: 0, duplicates: [], errors: [] };
+  const result: ImportResult = { imported: 0, updated: [], duplicates: [], errors: [] };
   if (!Array.isArray(rows) || rows.length > MAX_ROWS_PER_CALL) {
     result.errors.push({ line: firstLine, name: "", reason: "Fichier trop volumineux." });
     return result;
   }
 
   const supabase = await createClient();
-  const existing = await fetchAll<{ phone: string | null; autoscout_url: string | null }>(
-    (from, to) => supabase.from("leads").select("phone, autoscout_url").order("id").range(from, to),
+  const existing = await fetchAll<ExistingLead>((from, to) =>
+    supabase
+      .from("leads")
+      .select(`id, garage_name, phone, ${FILLABLE.join(", ")}`)
+      .order("id")
+      .range(from, to),
   );
-  const phones = new Set(existing.map((lead) => lead.phone).filter(Boolean) as string[]);
-  const urls = new Set(
-    existing.map((lead) => lead.autoscout_url && urlKey(lead.autoscout_url)).filter(Boolean) as string[],
-  );
 
-  const fallbackRegion = clean(region);
-  const toInsert: { line: number; lead: Record<string, unknown> }[] = [];
+  const plan = planImport(rows, existing, region, firstLine);
+  result.duplicates.push(...plan.duplicates);
+  result.errors.push(...plan.errors);
 
-  rows.forEach((raw, index) => {
-    const line = firstLine + index;
-    const row = Object.fromEntries(
-      Object.entries(raw ?? {}).filter(([key]) => FIELD_KEYS.includes(key)),
-    ) as ImportRow;
+  for (let start = 0; start < plan.toUpdate.length; start += UPDATE_CONCURRENCY) {
+    await Promise.all(
+      plan.toUpdate.slice(start, start + UPDATE_CONCURRENCY).map(async (item) => {
+        const { error } = await supabase.from("leads").update(item.patch).eq("id", item.id);
+        if (error) {
+          console.error("Import update failed:", error.message);
+          result.errors.push({ line: item.line, name: item.name, reason: "Mise à jour impossible" });
+        } else {
+          const fields = Object.keys(item.patch).map((field) => FIELD_LABELS[field] ?? field);
+          result.updated.push({ line: item.line, name: item.name, reason: fields.join(", ") });
+        }
+      }),
+    );
+  }
+  result.updated.sort((a, b) => a.line - b.line);
 
-    const name = clean(row.garage_name);
-    if (!name) {
-      result.errors.push({ line, name: "", reason: "Nom du garage manquant" });
-      return;
-    }
-
-    const phone = normalizePhone(row.phone);
-    const autoscout = normalizeUrl(row.autoscout_url);
-    if (phone && phones.has(phone)) {
-      result.duplicates.push({ line, name, reason: "Téléphone déjà présent" });
-      return;
-    }
-    if (autoscout && urls.has(urlKey(autoscout))) {
-      result.duplicates.push({ line, name, reason: "Lien AutoScout déjà présent" });
-      return;
-    }
-    if (phone) phones.add(phone);
-    if (autoscout) urls.add(urlKey(autoscout));
-
-    const cars = parseInt((row.cars_online ?? "").replace(/\D/g, ""), 10);
-    const canton = clean(row.canton)?.toUpperCase() ?? null;
-
-    toInsert.push({
-      line,
-      lead: {
-        garage_name: name,
-        contact_name: clean(row.contact_name),
-        phone,
-        email: clean(row.email),
-        website: normalizeUrl(row.website),
-        autoscout_url: autoscout,
-        address: clean(row.address),
-        city: clean(row.city),
-        canton: canton && CANTONS.includes(canton) ? canton : null,
-        region: clean(row.region) ?? fallbackRegion,
-        cars_online: Number.isFinite(cars) ? cars : null,
-        is_franchise: /^(true|1|oui|yes|vrai|x)$/i.test(row.is_franchise?.trim() ?? ""),
-        current_system: clean(row.current_system),
-        notes: clean(row.notes),
-        status: "to_contact",
-      },
-    });
-  });
-
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from("leads").insert(toInsert.map((item) => item.lead));
+  if (plan.toInsert.length > 0) {
+    const { error } = await supabase.from("leads").insert(plan.toInsert.map((item) => item.lead));
     if (!error) {
-      result.imported = toInsert.length;
+      result.imported = plan.toInsert.length;
     } else {
       // The batch is all-or-nothing, so retry row by row to find the failing lines
-      for (const item of toInsert) {
+      for (const item of plan.toInsert) {
         const { error: rowError } = await supabase.from("leads").insert(item.lead);
         const name = String(item.lead.garage_name);
         if (!rowError) result.imported += 1;

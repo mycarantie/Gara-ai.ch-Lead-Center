@@ -89,19 +89,20 @@ export default function ImportWizard({ regions }: { regions: string[] }) {
   function runImport() {
     setError(null);
     startTransition(async () => {
-      const total: ImportResult = { imported: 0, duplicates: [], errors: [] };
+      const total: ImportResult = { imported: 0, updated: [], duplicates: [], errors: [] };
       try {
         for (let start = 0; start < rows.length; start += BATCH_SIZE) {
           const batch = rows.slice(start, start + BATCH_SIZE).map(mapRow);
           // +2: line 1 is the header row
           const part = await importLeads(batch, region, start + 2);
           total.imported += part.imported;
+          total.updated.push(...part.updated);
           total.duplicates.push(...part.duplicates);
           total.errors.push(...part.errors);
         }
         setResult(total);
       } catch {
-        setError("L'import a échoué en cours de route. Relancez-le : les doublons seront ignorés.");
+        setError("L'import a échoué en cours de route. Relancez-le : les garages déjà présents ne seront pas dupliqués.");
       }
     });
   }
@@ -116,28 +117,31 @@ export default function ImportWizard({ regions }: { regions: string[] }) {
   }
 
   if (result) {
-    const skipped = [
-      ...result.duplicates.map((row) => ({ ...row, kind: "Doublon" })),
-      ...result.errors.map((row) => ({ ...row, kind: "Erreur" })),
-    ].sort((a, b) => a.line - b.line);
+    // Errors first, then what was filled in, then the plain duplicates
+    const details = [
+      ...result.errors.map((row) => ({ ...row, kind: "Erreur", tone: "text-red-700" })),
+      ...result.updated.map((row) => ({ ...row, kind: "Complété", tone: "text-emerald-700" })),
+      ...result.duplicates.map((row) => ({ ...row, kind: "Doublon", tone: "text-slate-600" })),
+    ];
 
     return (
       <div className="space-y-4">
         <section className={sectionClass}>
           <p role="status" className="text-base font-semibold text-slate-900">
             {plural(result.imported, "importé", "importés")},{" "}
+            {plural(result.updated.length, "complété", "complétés")},{" "}
             {plural(result.duplicates.length, "doublon ignoré", "doublons ignorés")},{" "}
             {plural(result.errors.length, "erreur", "erreurs")}
           </p>
-          {skipped.length > 0 && (
+          {details.length > 0 && (
             <ul className="mt-3 divide-y divide-slate-100 text-sm">
-              {skipped.map((row) => (
+              {details.map((row) => (
                 <li key={`${row.kind}-${row.line}`} className="py-2">
                   <span className="font-medium text-slate-900">
                     Ligne {row.line}
                     {row.name ? ` — ${row.name}` : ""}
                   </span>
-                  <span className={`ml-2 ${row.kind === "Erreur" ? "text-red-700" : "text-slate-600"}`}>
+                  <span className={`ml-2 ${row.tone}`}>
                     {row.kind} : {row.reason}
                   </span>
                 </li>
