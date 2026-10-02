@@ -1,4 +1,5 @@
 import { signOut } from "@/app/login/actions";
+import PasswordSettings from "@/components/PasswordSettings";
 import ProfileSettings from "@/components/ProfileSettings";
 import TemplateManager from "@/components/TemplateManager";
 import { createClient } from "@/lib/supabase/server";
@@ -22,6 +23,11 @@ export default async function SettingsPage() {
       <section className={sectionClass}>
         <h2 className="mb-3 text-sm font-semibold text-slate-900">Modèles de messages</h2>
         <TemplateManager />
+      </section>
+
+      <section className={sectionClass}>
+        <h2 className="mb-3 text-sm font-semibold text-slate-900">Mot de passe</h2>
+        <PasswordSettings email={email ?? ""} />
       </section>
 
       <section className={sectionClass}>

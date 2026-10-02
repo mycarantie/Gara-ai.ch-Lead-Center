@@ -6,6 +6,21 @@ import { redirect } from "next/navigation";
 import { isAllowedEmail } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
+export async function signInWithPassword(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+
+  if (!email) redirect("/login?error=email");
+  if (!isAllowedEmail(email)) redirect("/login?error=denied");
+  if (!password) redirect("/login?error=password");
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) redirect("/login?error=credentials");
+
+  redirect("/");
+}
+
 export async function sendMagicLink(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
 

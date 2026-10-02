@@ -6,6 +6,33 @@ import { DEFAULT_TEMPLATES } from "@/lib/templates";
 
 export type TemplateResult = { error: string } | undefined;
 
+const MIN_PASSWORD_LENGTH = 8;
+
+export async function setPassword(formData: FormData): Promise<TemplateResult> {
+  const password = String(formData.get("password") ?? "");
+  const confirmation = String(formData.get("confirmation") ?? "");
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { error: `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.` };
+  }
+  if (password !== confirmation) return { error: "Les deux mots de passe ne correspondent pas." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (!error) return;
+
+  if (error.code === "same_password") {
+    return { error: "Le nouveau mot de passe doit être différent de l'ancien." };
+  }
+  if (error.code === "weak_password") {
+    return { error: "Mot de passe trop faible. Choisissez-en un plus long ou plus varié." };
+  }
+  console.error("Password update failed:", error.code);
+  return {
+    error: "Impossible d'enregistrer le mot de passe. Reconnectez-vous par lien e-mail, puis réessayez.",
+  };
+}
+
 function parseTemplate(formData: FormData) {
   return {
     name: String(formData.get("name") ?? "").trim(),
