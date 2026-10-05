@@ -38,7 +38,7 @@ export default function ProfileSettings() {
             setSignature(event.target.value);
             setSetting("signature", event.target.value);
           }}
-          placeholder="Prénom Nom, Drivo SA"
+          placeholder="Prénom Nom, GARA AI"
           autoComplete="off"
           className={inputClass}
         />

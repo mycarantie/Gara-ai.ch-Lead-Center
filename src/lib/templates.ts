@@ -49,7 +49,7 @@ export function fillTemplate(
 export const DEFAULT_TEMPLATES: { name: string; body: string }[] = [
   {
     name: "Premier message",
-    body: "Bonjour {contact}, je suis {prenom}, patron de Drivo SA. J'ai développé pour notre garage un outil qui fait les contrats de vente, factures QR et formulaires d'immatriculation en 2 minutes, avec signature à distance du client. J'ai vu que vous avez {voitures} véhicules en ligne à {ville}, je pense que ça pourrait vous faire gagner du temps. Je peux vous envoyer une vidéo d'une minute ?",
+    body: "Bonjour {contact}, je suis {prenom} de GARA AI. Nous avons développé pour les garages un outil qui fait les contrats de vente, factures QR et formulaires d'immatriculation en 2 minutes, avec signature à distance du client. J'ai vu que vous avez {voitures} véhicules en ligne à {ville}, je pense que ça pourrait vous faire gagner du temps. Je peux vous envoyer une vidéo d'une minute ?",
   },
   {
     name: "Envoi de la vidéo",
