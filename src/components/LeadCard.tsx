@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatDate, toDateISO } from "@/lib/dates";
 import { toLogLead, toWhatsAppLead } from "@/lib/leads";
-import { telLink } from "@/lib/phone";
+import { formatPhone, telLink } from "@/lib/phone";
 import { isQualified } from "@/lib/rules";
 import type { Lead } from "@/lib/types";
 import LogButton from "./LogButton";
@@ -18,6 +18,7 @@ export default function LeadCard({ lead, today }: { lead: Lead; today: string })
   const overdue = nextDate !== null && nextDate < today;
   const details = [lead.city, carsLabel(lead.cars_online)].filter(Boolean).join(" · ");
   const phone = lead.do_not_contact ? null : lead.phone;
+  const lastContact = toDateISO(lead.last_contact_at);
 
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -41,6 +42,13 @@ export default function LeadCard({ lead, today }: { lead: Lead; today: string })
               Ne pas contacter
             </span>
           )}
+        </p>
+
+        {lead.phone && <p className="mt-1 text-sm text-slate-600">{formatPhone(lead.phone)}</p>}
+        {lead.email && <p className="break-all text-sm text-slate-600">{lead.email}</p>}
+
+        <p className="mt-1 text-xs text-slate-500">
+          {lastContact ? `Dernier contact : ${formatDate(lastContact)}` : "Jamais contacté"}
         </p>
 
         {(lead.next_action || nextDate) && (
