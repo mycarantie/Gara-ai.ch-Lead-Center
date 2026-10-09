@@ -11,7 +11,7 @@ import WhatsAppButton from "@/components/WhatsAppButton";
 import { formatDate, formatDateTime, toDateISO, todayISO } from "@/lib/dates";
 import { LOST_REASON_LABELS } from "@/lib/labels";
 import { toLogLead, toWhatsAppLead } from "@/lib/leads";
-import { formatPhone, telLink } from "@/lib/phone";
+import { formatPhone, gmailComposeLink, telLink } from "@/lib/phone";
 import { isQualified } from "@/lib/rules";
 import { createClient } from "@/lib/supabase/server";
 import type { Activity, Lead } from "@/lib/types";
@@ -92,7 +92,12 @@ export default async function LeadPage(props: PageProps<"/leads/[id]">) {
             </a>
           )}
           {lead.email && (
-            <a href={`mailto:${lead.email}`} className={`${quickButtonClass} text-slate-800`}>
+            <a
+              href={gmailComposeLink(lead.email)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${quickButtonClass} text-slate-800`}
+            >
               Email
             </a>
           )}

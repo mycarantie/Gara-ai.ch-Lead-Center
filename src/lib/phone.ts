@@ -52,3 +52,9 @@ export function whatsappLink(phone: string, text?: string): string {
 export function telLink(phone: string): string {
   return `tel:${phone}`;
 }
+
+// Opens Gmail's compose screen (web, or the Gmail app on a phone) instead of relying on
+// the system's default mail program, which on Windows is often Outlook.
+export function gmailComposeLink(to: string): string {
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}`;
+}
